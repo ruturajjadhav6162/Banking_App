@@ -5,9 +5,12 @@ import com.banking.Banking_app.entity.User;
 import com.banking.Banking_app.repository.UserRepository;
 import com.banking.Banking_app.utils.AccountUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mail.SimpleMailMessage;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
+
 @Service
 public class UserServiceImpl implements UserService {
     @Autowired
@@ -92,9 +95,87 @@ public class UserServiceImpl implements UserService {
     @Override
     public String nameEnquiry(EnquiryRequest request) {
         if(!userRepository.existsByAccountnumber(request.getAccountNumber())) {
-            return AccountUtils.ACCOUNT_NOT_EXISTS_CODE;
+            return "ACCOUNT DOES NOT EXISTS";
         }
         User info=userRepository.findByAccountnumber(request.getAccountNumber());
         return info.getFirstName()+" "+info.getLastName()+" "+info.getOtherName();
+    }
+    @Override
+    public BankResponse creditAccount(CreditDebitRequest request) {
+        //checking if account exists
+        if(!userRepository.existsByAccountnumber(request.getAccountNumber())) {
+            return BankResponse.builder()
+                    .responseCode(AccountUtils.ACCOUNT_NOT_EXISTS_CODE)
+                    .responseMessage(AccountUtils.ACCOUNT_NOT_EXISTS_MESSAGE)
+                    .accountInfo(null)
+                    .build();
+        }
+        User userToCredit=userRepository.findByAccountnumber(request.getAccountNumber());
+        userToCredit.setAccountBalance(userToCredit.getAccountBalance().add(request.getAmount()));
+        userRepository.save(userToCredit);
+        int accountNo=Integer.parseInt(userToCredit.getAccountnumber())%10000;
+        EmailDetails email=EmailDetails.builder()
+                .recipient(userToCredit.getEmail())
+                .subject("MONEY CREDITED TO ACCOUNT")
+                .messagebody("Your Account No Ending With "+accountNo+" has been credited with "+request.getAmount()
+                        +" INR\n Account Balance : "+userToCredit.getAccountBalance()+" INR")
+                .build();
+        emailService.sendEmailAlert(email);
+        return BankResponse.builder()
+                .responseCode(AccountUtils.ACCOUNT_CREDITED_SUCCESS_CODE)
+                .responseMessage(AccountUtils.ACCOUNT_CREDITED_SUCCESS_MESSAGE)
+                .accountInfo(AccountInfo.builder()
+                        .accountNumber(userToCredit.getAccountnumber())
+                        .accountName(userToCredit.getFirstName()+" "+userToCredit.getLastName()+" "+userToCredit.getOtherName())
+                        .accountBalance(userToCredit.getAccountBalance())
+                        .build())
+                .build();
+    }
+
+    @Override
+    public BankResponse debitAccount(CreditDebitRequest request) {
+        if(!userRepository.existsByAccountnumber(request.getAccountNumber())) {
+            return BankResponse.builder()
+                    .responseCode(AccountUtils.ACCOUNT_NOT_EXISTS_CODE)
+                    .responseMessage(AccountUtils.ACCOUNT_NOT_EXISTS_MESSAGE)
+                    .accountInfo(null)
+                    .build();
+        }
+        User userToDebit=userRepository.findByAccountnumber(request.getAccountNumber());
+        BigInteger availableBalance=userToDebit.getAccountBalance().toBigInteger();
+        BigInteger amountToDebit=request.getAmount().toBigInteger();
+        if(amountToDebit.intValue()>availableBalance.intValue()){
+            return BankResponse.builder()
+                    .responseCode(AccountUtils.INSUFFICIENT_BALANCE_CODE)
+                    .responseMessage(AccountUtils.INSUFFICIENT_BALANCE_MESSAGE)
+                    .accountInfo(AccountInfo.builder()
+                            .accountNumber(userToDebit.getAccountnumber())
+                            .accountName(userToDebit.getFirstName()+" "+userToDebit.getLastName()+" "+userToDebit.getOtherName())
+                            .accountBalance(userToDebit.getAccountBalance())
+                            .build())
+                    .build();
+        }
+
+        userToDebit.setAccountBalance(userToDebit.getAccountBalance().subtract(request.getAmount()));
+
+        userRepository.save(userToDebit);
+
+        int accountNo=Integer.parseInt(userToDebit.getAccountnumber())%10000;
+        EmailDetails email=EmailDetails.builder()
+                .recipient(userToDebit.getEmail())
+                .subject("MONEY DEBITED FROM ACCOUNT")
+                .messagebody("Your Account No Ending With "+accountNo+" has been debited with "+request.getAmount()
+                        +" INR\n Account Balance : "+userToDebit.getAccountBalance()+" INR")
+                .build();
+        emailService.sendEmailAlert(email);
+        return BankResponse.builder()
+                .responseCode(AccountUtils.ACCOUNT_DEBITED_SUCCESS_CODE)
+                .responseMessage(AccountUtils.ACCOUNT_DEBITED_SUCCESS_MESSAGE)
+                .accountInfo(AccountInfo.builder()
+                        .accountNumber(userToDebit.getAccountnumber())
+                        .accountName(userToDebit.getFirstName()+" "+userToDebit.getLastName()+" "+userToDebit.getOtherName())
+                        .accountBalance(userToDebit.getAccountBalance())
+                        .build())
+                .build();
     }
 }
