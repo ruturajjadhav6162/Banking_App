@@ -19,6 +19,8 @@ public class AccountUtils {
 //    public static final String ACCOUNT_CREDITED_FAIL_MESSAGE=""
     public static final String INSUFFICIENT_BALANCE_CODE="006";
     public static final String INSUFFICIENT_BALANCE_MESSAGE="Insufficient Balance";
+    public static final String TRANSFER_SUCCESS_CODE="008";
+    public static final String TRANSFER_SUCCESS_MESSAGE="Transfer Successfully!!";
 
 
     public static String generateAccountNumber() {

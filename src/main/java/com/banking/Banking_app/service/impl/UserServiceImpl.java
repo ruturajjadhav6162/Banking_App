@@ -7,6 +7,7 @@ import com.banking.Banking_app.utils.AccountUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -100,7 +101,9 @@ public class UserServiceImpl implements UserService {
         User info=userRepository.findByAccountnumber(request.getAccountNumber());
         return info.getFirstName()+" "+info.getLastName()+" "+info.getOtherName();
     }
+
     @Override
+    @Transactional
     public BankResponse creditAccount(CreditDebitRequest request) {
         //checking if account exists
         if(!userRepository.existsByAccountnumber(request.getAccountNumber())) {
@@ -133,6 +136,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public BankResponse debitAccount(CreditDebitRequest request) {
         if(!userRepository.existsByAccountnumber(request.getAccountNumber())) {
             return BankResponse.builder()
@@ -176,6 +180,60 @@ public class UserServiceImpl implements UserService {
                         .accountName(userToDebit.getFirstName()+" "+userToDebit.getLastName()+" "+userToDebit.getOtherName())
                         .accountBalance(userToDebit.getAccountBalance())
                         .build())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public BankResponse transferAmount(TransferRequest request) {
+        boolean isSourceAccountExists=userRepository.existsByAccountnumber(request.getSourceAccountNumber());
+        boolean isDestinationAccountExists=userRepository.existsByAccountnumber(request.getDestinationAccountNumber());
+        if(!isDestinationAccountExists||!isSourceAccountExists){
+            return BankResponse.builder()
+                    .responseCode(AccountUtils.ACCOUNT_NOT_EXISTS_CODE)
+                    .responseMessage(AccountUtils.ACCOUNT_NOT_EXISTS_MESSAGE)
+                    .accountInfo(null)
+                    .build();
+        }
+        User sourceAccountUser=userRepository.findByAccountnumber(request.getSourceAccountNumber());
+        if(request.getAmount().compareTo(sourceAccountUser.getAccountBalance())>0){
+            return BankResponse.builder()
+                    .responseCode(AccountUtils.INSUFFICIENT_BALANCE_CODE)
+                    .responseMessage(AccountUtils.INSUFFICIENT_BALANCE_MESSAGE)
+                    .accountInfo(null)
+                    .build();
+        }
+        sourceAccountUser.setAccountBalance(sourceAccountUser.getAccountBalance().subtract(request.getAmount()));
+        userRepository.save(sourceAccountUser);
+
+        User destinationAccountUser=userRepository.findByAccountnumber(request.getDestinationAccountNumber());
+        destinationAccountUser.setAccountBalance(destinationAccountUser.getAccountBalance().add(request.getAmount()));
+        userRepository.save(destinationAccountUser);
+
+        int accountNo=Integer.parseInt(sourceAccountUser.getAccountnumber())%10000;
+
+        int accountNo2=Integer.parseInt(destinationAccountUser.getAccountnumber())%10000;
+        EmailDetails emailDetails= EmailDetails.builder()
+                .recipient(sourceAccountUser.getEmail())
+                .subject("MONEY DEBITED FROM ACCOUNT")
+                .messagebody("Your Account No Ending With "+accountNo+" has been debited with "+request.getAmount()
+                        +" INR Towards Account number Ending with "+accountNo2+"\n Account Balance : "+sourceAccountUser.getAccountBalance()+" INR")
+                .build();
+        emailService.sendEmailAlert(emailDetails);
+
+
+
+        EmailDetails email=EmailDetails.builder()
+                .recipient(destinationAccountUser.getEmail())
+                .subject("MONEY CREDITED TO ACCOUNT")
+                .messagebody("Your Account No Ending With "+accountNo2+" has been credited with "+request.getAmount()
+                        +" INR   From Account Number Ending with "+accountNo+"\n Account Balance : "+destinationAccountUser.getAccountBalance()+" INR")
+                .build();
+        emailService.sendEmailAlert(email);
+        return BankResponse.builder()
+                .responseCode(AccountUtils.TRANSFER_SUCCESS_CODE)
+                .responseMessage(AccountUtils.TRANSFER_SUCCESS_MESSAGE)
+                .accountInfo(null)
                 .build();
     }
 }
