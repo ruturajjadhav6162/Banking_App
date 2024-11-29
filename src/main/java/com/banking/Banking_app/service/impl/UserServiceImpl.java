@@ -193,7 +193,7 @@ public class UserServiceImpl implements UserService {
                     .responseCode(AccountUtils.ACCOUNT_NOT_EXISTS_CODE)
                     .responseMessage(AccountUtils.ACCOUNT_NOT_EXISTS_MESSAGE)
                     .accountInfo(null)
-                    .build();
+                    .build()
         }
         User sourceAccountUser=userRepository.findByAccountnumber(request.getSourceAccountNumber());
         if(request.getAmount().compareTo(sourceAccountUser.getAccountBalance())>0){
