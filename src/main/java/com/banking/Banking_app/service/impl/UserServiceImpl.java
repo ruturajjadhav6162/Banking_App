@@ -18,7 +18,8 @@ public class UserServiceImpl implements UserService {
     UserRepository userRepository;
     @Autowired
     EmailServiceImpl emailService;
-
+    @Autowired
+    TransactionImpl transactionImpl;
     @Override
     public BankResponse createAccount(UserRequest userRequest) {
 //        Creating an Account - Saving info in db
@@ -124,6 +125,15 @@ public class UserServiceImpl implements UserService {
                         +" INR\n Account Balance : "+userToCredit.getAccountBalance()+" INR")
                 .build();
         emailService.sendEmailAlert(email);
+
+        TransactionDto transactionDto=TransactionDto.builder()
+                .accountNumber(userToCredit.getAccountnumber())
+                .amount(request.getAmount().toString())
+                .transactionType("CREDIT")
+                .build();
+
+        transactionImpl.saveTransaction(transactionDto);
+
         return BankResponse.builder()
                 .responseCode(AccountUtils.ACCOUNT_CREDITED_SUCCESS_CODE)
                 .responseMessage(AccountUtils.ACCOUNT_CREDITED_SUCCESS_MESSAGE)
@@ -163,7 +173,13 @@ public class UserServiceImpl implements UserService {
         userToDebit.setAccountBalance(userToDebit.getAccountBalance().subtract(request.getAmount()));
 
         userRepository.save(userToDebit);
+        TransactionDto transactionDto=TransactionDto.builder()
+                .accountNumber(userToDebit.getAccountnumber())
+                .amount(request.getAmount().toString())
+                .transactionType("DEBIT")
+                .build();
 
+        transactionImpl.saveTransaction(transactionDto);
         int accountNo=Integer.parseInt(userToDebit.getAccountnumber())%10000;
         EmailDetails email=EmailDetails.builder()
                 .recipient(userToDebit.getEmail())
@@ -172,6 +188,7 @@ public class UserServiceImpl implements UserService {
                         +" INR\n Account Balance : "+userToDebit.getAccountBalance()+" INR")
                 .build();
         emailService.sendEmailAlert(email);
+
         return BankResponse.builder()
                 .responseCode(AccountUtils.ACCOUNT_DEBITED_SUCCESS_CODE)
                 .responseMessage(AccountUtils.ACCOUNT_DEBITED_SUCCESS_MESSAGE)
