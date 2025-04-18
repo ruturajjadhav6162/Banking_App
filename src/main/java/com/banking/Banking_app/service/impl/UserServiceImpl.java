@@ -226,7 +226,20 @@ public class UserServiceImpl implements UserService {
         User destinationAccountUser=userRepository.findByAccountnumber(request.getDestinationAccountNumber());
         destinationAccountUser.setAccountBalance(destinationAccountUser.getAccountBalance().add(request.getAmount()));
         userRepository.save(destinationAccountUser);
+        TransactionDto transactionDtoDebit=TransactionDto.builder()
+                .accountNumber(sourceAccountUser.getAccountnumber())
+                .amount(request.getAmount().toString())
+                .transactionType("DEBIT")
+                .build();
 
+        transactionImpl.saveTransaction(transactionDtoDebit);
+        TransactionDto transactionDtoCredit=TransactionDto.builder()
+                .accountNumber(destinationAccountUser.getAccountnumber())
+                .amount(request.getAmount().toString())
+                .transactionType("CREDIT")
+                .build();
+
+        transactionImpl.saveTransaction(transactionDtoCredit);
         int accountNo=Integer.parseInt(sourceAccountUser.getAccountnumber())%10000;
 
         int accountNo2=Integer.parseInt(destinationAccountUser.getAccountnumber())%10000;
